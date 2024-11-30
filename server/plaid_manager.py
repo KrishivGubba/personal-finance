@@ -9,6 +9,7 @@ from plaid.model.country_code import CountryCode
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
+from datetime import datetime, timedelta
 import random 
 import string
 
@@ -75,7 +76,7 @@ class PlaidManager:
         #     print(f"Error creating access token:")
         #     print(f"Error detail")
         #     return None
-    
+
     def update_transactions(self, access_token, cursor=""):
         """
         Update transactions for a user
@@ -85,11 +86,34 @@ class PlaidManager:
         returns:
             ??
         """
-        request = TransactionsSyncRequest(
-            access_token=access_token,
-        )
-        print(self.client.transactions_sync(request))
-
+        try:
+            if not cursor or len(cursor)>0:
+                request = TransactionsSyncRequest(
+                    access_token=access_token,
+                )
+            else: request = TransactionsSyncRequest(access_token=access_token, cursor=cursor)
+            
+            response = self.client.transactions_sync(request)
+            added_transactions = response.added
+            
+            # weird logic
+            yesterday = datetime.now().date() - timedelta(days=1 if len(cursor)>0 else 10000)
+            
+            # Filter transactions - convert transaction.date to date if it's datetime
+            recent_transactions = [
+                transaction for transaction in added_transactions
+                if (transaction.date.date() if isinstance(transaction.date, datetime) else transaction.date) > yesterday
+            ]
+            
+            return {
+                'transactions': recent_transactions,
+                'next_cursor': response.next_cursor
+            }
+            
+        except plaid.ApiException as e:
+            print(f"Error getting transactions: {e}")
+            print(f"Error detail: {e.body}")
+            return None
         
     
     @staticmethod
@@ -98,4 +122,10 @@ class PlaidManager:
         return ''.join(random.choice(characters) for i in range(length))
 
 plaid  = PlaidManager()
-plaid.update_transactions(SANDBOX_ACCESS_TEST, None)
+first = plaid.update_transactions(SANDBOX_ACCESS_TEST)
+print(len(first["transactions"]))
+curs = first["next_cursor"]
+second = plaid.update_transactions(SANDBOX_ACCESS_TEST, curs)
+print("\n\n\n\n\n\n\n\n\n")
+print(len(second["transactions"]))
+
