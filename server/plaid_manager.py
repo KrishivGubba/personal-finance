@@ -10,6 +10,8 @@ from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUse
 from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from datetime import datetime, timedelta
+from mongo_schemas.transaction_schema import Transaction
+from mongo_schemas.cursor_schema import Cursor
 import random 
 import string
 
@@ -84,7 +86,8 @@ class PlaidManager:
             access_token: unique user id
             cursor: last fetched date, if NONE: then will fetch all data
         returns:
-            ??
+            True if success -> and saves transaction and cursor documents
+            else False
         """
         try:
             if not cursor or len(cursor)>0:
@@ -98,22 +101,24 @@ class PlaidManager:
             
             # weird logic
             yesterday = datetime.now().date() - timedelta(days=1 if len(cursor)>0 else 10000)
-            
             # Filter transactions - convert transaction.date to date if it's datetime
             recent_transactions = [
                 transaction for transaction in added_transactions
                 if (transaction.date.date() if isinstance(transaction.date, datetime) else transaction.date) > yesterday
             ]
             
-            return {
-                'transactions': recent_transactions,
-                'next_cursor': response.next_cursor
-            }
-            
+            #making transaction objects
+            all_transactions = []
+            for transaction in recent_transactions:
+                transaction["access_token"] = access_token
+                all_transactions.append(Transaction.from_dict(transaction))
+            #cursor object
+            cursor = Cursor(access_token, cursor=response["next_cursor"],cursor_type="transactions")
+            return all_transactions, cursor
         except plaid.ApiException as e:
             print(f"Error getting transactions: {e}")
             print(f"Error detail: {e.body}")
-            return None
+            return False
         
     
     @staticmethod
@@ -122,10 +127,10 @@ class PlaidManager:
         return ''.join(random.choice(characters) for i in range(length))
 
 plaid  = PlaidManager()
-first = plaid.update_transactions(SANDBOX_ACCESS_TEST)
-print(len(first["transactions"]))
-curs = first["next_cursor"]
-second = plaid.update_transactions(SANDBOX_ACCESS_TEST, curs)
-print("\n\n\n\n\n\n\n\n\n")
-print(len(second["transactions"]))
+first, second = plaid.update_transactions(SANDBOX_ACCESS_TEST)
+print(second)
+# curs = first["next_cursor"]
+# second = plaid.update_transactions(SANDBOX_ACCESS_TEST, curs)
+# print("\n\n\n\n\n\n\n\n\n")
+# print(len(second["transactions"]))
 
