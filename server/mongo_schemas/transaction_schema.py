@@ -34,7 +34,7 @@ class Transaction():
     iso_currency_code: str
 
     def to_dict(self):
-        # Convert date to datetime for MongoDB storage
+        # convert date to datetime for MongoDB storage
         datetime_obj = datetime.combine(self.date, datetime.min.time())
         
         return {
@@ -54,14 +54,16 @@ class Transaction():
     
     @classmethod
     def from_dict(cls, data: dict):
-        # Handle date conversion from datetime if needed
+        # handle date conversion from datetime if needed
         date_value = data['date']
         if isinstance(date_value, datetime):
             date_value = date_value.date()
             
+        #apparently, the personal finance category is an object in itself, and if it has "to_dict" function, then we use THAT
+        #to set the value of the personal finance categ. very weird.
         if hasattr(data.get('personal_finance_category', {}), 'to_dict'):
             personal_finance_cat = data['personal_finance_category'].to_dict()
-        else:
+        else: #in case this function does not exist, then it is not an object lol, so we can just get its value
             personal_finance_cat = data.get('personal_finance_category')
 
         return cls(

@@ -13,27 +13,31 @@ from datetime import datetime, timedelta
 from mongo_schemas.transaction_schema import Transaction
 from mongo_schemas.cursor_schema import Cursor
 from transaction_repository import TransactionRepository
+from plaid import Configuration, Environment, ApiClient
+from typing import Optional
+from plaid.api.plaid_api import PlaidApi
 import random 
 import string
+from email_sending import EmailSender
 
-SANDBOX_ACCESS_TEST = "access-sandbox-32c840d8-1f70-4c2e-afe7-2394619a6bdc"
+SANDBOX_ACCESS_TEST = "access-sandbox-7b271418-b0a6-43d5-a2cf-2734fc7b84c0"
 
 class PlaidManager:
     def __init__(self):
         load_dotenv()
         self.client_id = os.getenv("PLAID_CLIENT_ID")
         self.secret = os.getenv("PLAID_SECRET")
-        
-        configuration = plaid.Configuration(
-            host=plaid.Environment.Sandbox,
+
+        configuration = Configuration(
+            host=Environment.Sandbox,
             api_key={
                 'clientId': self.client_id,
                 'secret': self.secret,
             }
         )
         
-        api_client = plaid.ApiClient(configuration)
-        self.client = plaid_api.PlaidApi(api_client)
+        api_client = ApiClient(configuration)
+        self.client = PlaidApi(api_client)
     
     def create_link_token(self):
         """
@@ -80,7 +84,7 @@ class PlaidManager:
         #     print(f"Error detail")
         #     return None
 
-    def update_transactions(self, access_token:str):
+    def update_transactions(self, access_token:str) -> Optional[tuple[list[Transaction], Cursor]]:
         """
         Update transactions for a user
         args:
@@ -129,12 +133,46 @@ class PlaidManager:
             if all_transactions: cacher.save_transactions(all_transactions)
             #cursor saving:
             cacher.save_cursor(cursor=new_cursor)
-            return all_transactions, new_cursor
+            return (all_transactions, new_cursor)
         except plaid.ApiException as e:
             print(f"Error getting transactions: {e}")
             print(f"Error detail: {e.body}")
-            return False
-        
+            return None
+    
+    def get_prev_transactions(self, access_token:str, days: int) -> dict:
+        """
+        This fetches transactions by previous days. this is NOT like update_transcations, ie: will not update any records, will not
+        call Plaid API, will ONLY fetch records from transactions mongodb collection
+
+
+
+        Will also arrange into expenses and income (maybe)
+
+        args:
+            days: lookback
+            access_token: for specific user transaction lookup
+        returns:
+            transactions: hmap of transactions, two fields, incoming & outgoing
+        """
+        fetcher = TransactionRepository(
+                                os.getenv("MONGO_CLIENT"), 
+                                os.getenv("MONGO_DB_NAME"),
+                                os.getenv("MONGO_TRANSACTION_COLLECTION"),
+                                os.getenv("MONGO_TRANSACTION_CURSOR_COLLECTION")
+                                )
+        prevTransactions = fetcher.find_transactions(access_token,days)
+        output = {
+            "incoming":[],
+            "outgoing":[]
+        }
+        if prevTransactions:
+            for transaction in prevTransactions:
+                if transaction.amount>=0:
+                    output["outgoing"].append(transaction)
+                else: output["incoming"].append(transaction)
+        return output
+
+
     
     @staticmethod
     def generateRandString(length):
@@ -142,10 +180,15 @@ class PlaidManager:
         return ''.join(random.choice(characters) for i in range(length))
 
 plaid  = PlaidManager()
-first, second = plaid.update_transactions(SANDBOX_ACCESS_TEST)
-print(first)
-# curs = first["next_cursor"]
-# second = plaid.update_transactions(SANDBOX_ACCESS_TEST, curs)
-# print("\n\n\n\n\n\n\n\n\n")
-# print(len(second["transactions"]))
+output = plaid.get_prev_transactions(SANDBOX_ACCESS_TEST, 15)
+
+# print(output["incoming"][0].amount)  # This will show all attributes
+
+sender = EmailSender("kgubba@wisc.edu")
+one, two = sender.render_html(output)
+print(one)
+print(two)
+sender.send_email("krishivgubba626@gmail.com", one, two)
+
+
 

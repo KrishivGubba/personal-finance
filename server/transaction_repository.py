@@ -6,6 +6,7 @@ from mongo_schemas.transaction_schema import Transaction
 from mongo_schemas.cursor_schema import Cursor
 import logging
 from typing import Optional
+from datetime import datetime, timedelta
 
 
 load_dotenv()
@@ -55,6 +56,19 @@ class TransactionRepository:
         if found:
             return Cursor.from_dict(found)
         return None
+    
+    def find_transactions(self,access_token:str, lookback:int = 1):
+        """
+        lookup transactions for the previous
+        """
+        prev = datetime.now() - timedelta(days=lookback)
+        found = self.main_collection.find(
+            {
+                "date": {"$gt": prev},
+                "access_token": access_token
+            }
+        )
+        return [Transaction.from_dict(document) for document in found]
         
 
 
