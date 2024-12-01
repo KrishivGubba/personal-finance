@@ -1,5 +1,5 @@
 from dataclasses import dataclass, asdict
-from datetime import date
+from datetime import date, datetime
 
 """
 transaction_fields = [
@@ -34,21 +34,60 @@ class Transaction():
     iso_currency_code: str
 
     def to_dict(self):
-        return asdict(self)
+        # Convert date to datetime for MongoDB storage
+        datetime_obj = datetime.combine(self.date, datetime.min.time())
+        
+        return {
+            'transaction_id': self.transaction_id,
+            'access_token': self.access_token,
+            'account_id': self.account_id,
+            'amount': self.amount,
+            'date': datetime_obj,  # Store as datetime
+            'name': self.name,
+            'merchant_name': self.merchant_name,
+            'category': self.category,
+            'personal_finance_category': self.personal_finance_category,
+            'pending': self.pending,
+            'payment_channel': self.payment_channel,
+            'iso_currency_code': self.iso_currency_code
+        }
     
     @classmethod
     def from_dict(cls, data: dict):
+        # Handle date conversion from datetime if needed
+        date_value = data['date']
+        if isinstance(date_value, datetime):
+            date_value = date_value.date()
+            
+        if hasattr(data.get('personal_finance_category', {}), 'to_dict'):
+            personal_finance_cat = data['personal_finance_category'].to_dict()
+        else:
+            personal_finance_cat = data.get('personal_finance_category')
+
         return cls(
             transaction_id=data['transaction_id'],
             access_token=data['access_token'], 
             account_id=data['account_id'],
             amount=data['amount'],
-            date=data['date'],
+            date=date_value,
             name=data['name'],
-            merchant_name=data['merchant_name'],
-            category=data['category'],
-            personal_finance_category=data['personal_finance_category'],
+            merchant_name=data.get('merchant_name'),
+            category=data.get('category'),
+            personal_finance_category=personal_finance_cat,
             pending=data['pending'],
             payment_channel=data['payment_channel'],
             iso_currency_code=data['iso_currency_code']
         )
+
+
+"""
+general plan for schemas:
+
+one collection for transactions, 
+
+and another for cursors (not sure if more will need this), schema: 
+cursor: string
+access_token: string (this is to identify with a user)
+cursor_type: "transactions"/something else if needed
+
+"""

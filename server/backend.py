@@ -23,6 +23,15 @@ def get_link_token():
         return jsonify({"link_token": link_token})
     else:
         return jsonify({"error": "Failed to create link token"}), 400
+
+@app.route("/api/sendaccesstoken", methods = ["POST"])
+def get_access_token():
+    data = request.get_json()
+    plaid_manager = PlaidManager()
+    access_token = plaid_manager.create_access_token(data["publicToken"])
+    plaid_manager.update_transactions(access_token)
+    return "ok"
+
     
 
 if __name__=="__main__":

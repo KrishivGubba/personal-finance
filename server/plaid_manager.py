@@ -12,6 +12,7 @@ from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from datetime import datetime, timedelta
 from mongo_schemas.transaction_schema import Transaction
 from mongo_schemas.cursor_schema import Cursor
+from transaction_repository import TransactionRepository
 import random 
 import string
 
@@ -89,7 +90,7 @@ class PlaidManager:
             True if success -> and saves transaction and cursor documents
             else False
         """
-        try:
+        try:#TODO: get rid of the cursor argument, we need to lookup in db for it, if doesn't exist, then first time user
             if not cursor or len(cursor)>0:
                 request = TransactionsSyncRequest(
                     access_token=access_token,
@@ -114,6 +115,13 @@ class PlaidManager:
                 all_transactions.append(Transaction.from_dict(transaction))
             #cursor object
             cursor = Cursor(access_token, cursor=response["next_cursor"],cursor_type="transactions")
+            #TODO: save the cursor and all_transactions by calling methods in transaction_schema
+            #transaction saving:
+            load_dotenv()
+            cacher = TransactionRepository(os.getenv("MONGO_CLIENT"), 
+                                           os.getenv("MONGO_DB_NAME"),
+                                           os.getenv("MONGO_TRANSACTION_COLLECTION") )
+            cacher.save_transactions(all_transactions)
             return all_transactions, cursor
         except plaid.ApiException as e:
             print(f"Error getting transactions: {e}")
@@ -126,9 +134,9 @@ class PlaidManager:
         characters = string.ascii_letters + string.digits
         return ''.join(random.choice(characters) for i in range(length))
 
-plaid  = PlaidManager()
-first, second = plaid.update_transactions(SANDBOX_ACCESS_TEST)
-print(second)
+# plaid  = PlaidManager()
+# first, second = plaid.update_transactions(SANDBOX_ACCESS_TEST)
+# print(second)
 # curs = first["next_cursor"]
 # second = plaid.update_transactions(SANDBOX_ACCESS_TEST, curs)
 # print("\n\n\n\n\n\n\n\n\n")
