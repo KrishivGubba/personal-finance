@@ -80,7 +80,7 @@ class PlaidManager:
         #     print(f"Error detail")
         #     return None
 
-    def update_transactions(self, access_token, cursor=""):
+    def update_transactions(self, access_token:str):
         """
         Update transactions for a user
         args:
@@ -91,17 +91,26 @@ class PlaidManager:
             else False
         """
         try:#TODO: get rid of the cursor argument, we need to lookup in db for it, if doesn't exist, then first time user
-            if not cursor or len(cursor)>0:
+            load_dotenv()
+            cacher = TransactionRepository(
+                                os.getenv("MONGO_CLIENT"), 
+                                os.getenv("MONGO_DB_NAME"),
+                                os.getenv("MONGO_TRANSACTION_COLLECTION"),
+                                os.getenv("MONGO_TRANSACTION_CURSOR_COLLECTION")
+                                )
+            cursorLookup = cacher.find_cursor(access_token=access_token)
+            #if not found, then go ahead without cursor (will fetch all records)
+            if not cursorLookup:
                 request = TransactionsSyncRequest(
                     access_token=access_token,
                 )
-            else: request = TransactionsSyncRequest(access_token=access_token, cursor=cursor)
+            else: request = TransactionsSyncRequest(access_token=access_token, cursor=cursorLookup.cursor)
             
             response = self.client.transactions_sync(request)
             added_transactions = response.added
             
             # weird logic
-            yesterday = datetime.now().date() - timedelta(days=1 if len(cursor)>0 else 10000)
+            yesterday = datetime.now().date() - timedelta(days=1 if cursorLookup else 10000)
             # Filter transactions - convert transaction.date to date if it's datetime
             recent_transactions = [
                 transaction for transaction in added_transactions
@@ -114,15 +123,13 @@ class PlaidManager:
                 transaction["access_token"] = access_token
                 all_transactions.append(Transaction.from_dict(transaction))
             #cursor object
-            cursor = Cursor(access_token, cursor=response["next_cursor"],cursor_type="transactions")
+            new_cursor = Cursor(access_token, cursor=response["next_cursor"],cursor_type="transactions")
             #TODO: save the cursor and all_transactions by calling methods in transaction_schema
             #transaction saving:
-            load_dotenv()
-            cacher = TransactionRepository(os.getenv("MONGO_CLIENT"), 
-                                           os.getenv("MONGO_DB_NAME"),
-                                           os.getenv("MONGO_TRANSACTION_COLLECTION") )
-            cacher.save_transactions(all_transactions)
-            return all_transactions, cursor
+            if all_transactions: cacher.save_transactions(all_transactions)
+            #cursor saving:
+            cacher.save_cursor(cursor=new_cursor)
+            return all_transactions, new_cursor
         except plaid.ApiException as e:
             print(f"Error getting transactions: {e}")
             print(f"Error detail: {e.body}")
@@ -134,9 +141,9 @@ class PlaidManager:
         characters = string.ascii_letters + string.digits
         return ''.join(random.choice(characters) for i in range(length))
 
-# plaid  = PlaidManager()
-# first, second = plaid.update_transactions(SANDBOX_ACCESS_TEST)
-# print(second)
+plaid  = PlaidManager()
+first, second = plaid.update_transactions(SANDBOX_ACCESS_TEST)
+print(first)
 # curs = first["next_cursor"]
 # second = plaid.update_transactions(SANDBOX_ACCESS_TEST, curs)
 # print("\n\n\n\n\n\n\n\n\n")
