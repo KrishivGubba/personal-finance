@@ -25,6 +25,27 @@ function App() {
 
   const onSuccess = (public_token, metadata) => {
     console.log("Got public token:", public_token);
+    fetch('http://localhost:5000/api/sendaccesstoken', {
+      method: "POST",
+      body: JSON.stringify({
+        publicToken: public_token
+      }),
+      headers: {
+        "Content-type": "application/json; charset=UTF-8"
+      }
+    })
+    .then(response => {       
+      if (!response.ok) {
+        throw new Error('Failed to exchange token');
+      }
+      return response.json();  
+    })
+    .then(data => {           
+      console.log("Successfully connected bank account");
+    })
+    .catch(error => {
+      console.log("Some error occurred: ", error);
+    });
   };
 
   const { open, ready } = usePlaidLink({
