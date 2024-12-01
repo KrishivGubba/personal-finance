@@ -179,16 +179,16 @@ class PlaidManager:
         characters = string.ascii_letters + string.digits
         return ''.join(random.choice(characters) for i in range(length))
 
-plaid  = PlaidManager()
-output = plaid.get_prev_transactions(SANDBOX_ACCESS_TEST, 15)
+# plaid  = PlaidManager()
+# output = plaid.get_prev_transactions(SANDBOX_ACCESS_TEST, 15)
 
-# print(output["incoming"][0].amount)  # This will show all attributes
+# # print(output["incoming"][0].amount)  # This will show all attributes
 
-sender = EmailSender("kgubba@wisc.edu")
-one, two = sender.render_html(output)
-print(one)
-print(two)
-sender.send_email("krishivgubba626@gmail.com", one, two)
+# sender = EmailSender("kgubba@wisc.edu")
+# one, two = sender.render_html(output)
+# print(one)
+# print(two)
+# sender.send_email("krishivgubba626@gmail.com", one, two)
 
 
 

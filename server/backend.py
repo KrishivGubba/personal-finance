@@ -51,13 +51,13 @@ def send_email():
     """
 
     plaidthing = PlaidManager()
-    output = plaidthing.get_prev_transactions(1)
+    output = plaidthing.get_prev_transactions("access-sandbox-7b271418-b0a6-43d5-a2cf-2734fc7b84c0",20)
     load_dotenv()
     emailsender = EmailSender(os.getenv("VERIFIED_SENDING_EMAIL"))
     #TODO:iterate over all users and send, for now just one
     subject, content = emailsender.render_html(output)
-    emailsender.send_email("krishivgubba626@gmail.com", )
-    return
+    emailsender.send_email("krishivgubba626@gmail.com", subject, content)
+    return {"Success":"Email sent successfully"}, 200
 
     
 
